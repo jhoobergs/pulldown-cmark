@@ -61,6 +61,7 @@ fn main() {
                     ordered_list_first_item_number
                 ),
                 Tag::Item => println!("Item (this is a list item)"),
+                Tag::Output => println!("Output (this is a span tag)"),
                 Tag::Emphasis => println!("Emphasis (this is a span tag)"),
                 Tag::Strong => println!("Strong (this is a span tag)"),
                 Tag::Strikethrough => println!("Strikethrough (this is a span tag)"),

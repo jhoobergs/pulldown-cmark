@@ -435,3 +435,36 @@ fn issue_819() {
         assert_eq!(expected, s.trim_end_matches('\n'));
     }
 }
+
+#[test]
+fn html_test_single_percentage_output_inline() {
+    let original = "hi 100%";
+    let expected = "<span>hi 100%</span>\n";
+
+    let mut s = String::new();
+    html::push_html(&mut s, Parser::new(original), true);
+    assert_eq!(expected, s);
+}
+
+
+#[test]
+fn html_test_almost_output_inline() {
+    let original = "hi %%no%";
+    let expected = "<span>hi %%no%</span>\n";
+
+    let mut s = String::new();
+    html::push_html(&mut s, Parser::new(original), true);
+    assert_eq!(expected, s);
+}
+
+
+#[test]
+fn html_test_output_inline() {
+    let original = "hi %%no%%";
+    let expected = r#"<span>hi <span class="text_output">no</span></span>
+"#;
+
+    let mut s = String::new();
+    html::push_html(&mut s, Parser::new(original), true);
+    assert_eq!(expected, s);
+}

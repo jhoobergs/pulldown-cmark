@@ -311,6 +311,7 @@ where
                     self.write("\n<li>")
                 }
             }
+            Tag::Output => self.write(r#"<span class="text_output">"#),
             Tag::Emphasis => self.write("<em>"),
             Tag::Strong => self.write("<strong>"),
             Tag::Strikethrough => self.write("<del>"),
@@ -430,6 +431,9 @@ where
             }
             TagEnd::Item => {
                 self.write("</li>\n")?;
+            }
+            TagEnd::Output => {
+                self.write("</span>")?;
             }
             TagEnd::Emphasis => {
                 self.write("</em>")?;

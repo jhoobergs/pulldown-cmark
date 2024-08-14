@@ -87,6 +87,7 @@ pub(crate) enum ItemBody {
     Image(LinkIndex),
     FootnoteReference(CowIndex),
     TaskListMarker(bool), // true for checked
+    Output,
 
     Rule,
     Heading(HeadingLevel, Option<HeadingIndex>), // heading level
@@ -836,6 +837,8 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
                                 };
                                 let ty = if c == b'~' {
                                     ItemBody::Strikethrough
+                                } else if c == b'%' {
+                                    ItemBody::Output
                                 } else if inc == 2 {
                                     ItemBody::Strong
                                 } else {
@@ -1357,7 +1360,7 @@ struct InlineEl {
     count: usize,
     /// length of the run that these delimiters came from
     run_length: usize,
-    /// b'*', b'_', or b'~'
+    /// b'*', b'_', or b'~' or b'%'
     c: u8,
     /// can both open and close
     both: bool,
@@ -1382,6 +1385,7 @@ impl InlineStack {
     const ASTERISK_BASE: usize = 2;
     const TILDES: usize = 5;
     const UNDERSCORE_BASE: usize = 6;
+    const PERCENTAGES: usize = 7;
 
     fn pop_all(&mut self, tree: &mut Tree<Item>) {
         for el in self.stack.drain(..) {
@@ -1415,6 +1419,8 @@ impl InlineStack {
                     self.lower_bounds[InlineStack::ASTERISK_NOT_BOTH],
                 )
             }
+        } else if c == b'%' {
+            self.lower_bounds[InlineStack::PERCENTAGES]
         } else {
             self.lower_bounds[InlineStack::TILDES]
         }
@@ -1432,6 +1438,8 @@ impl InlineStack {
             if !both {
                 self.lower_bounds[InlineStack::ASTERISK_NOT_BOTH] = new_bound;
             }
+        } else if c == b'%' {
+            self.lower_bounds[InlineStack::PERCENTAGES] = new_bound;
         } else {
             self.lower_bounds[InlineStack::TILDES] = new_bound;
         }
@@ -1460,6 +1468,9 @@ impl InlineStack {
             .enumerate()
             .rfind(|(_, el)| {
                 if c == b'~' && run_length != el.run_length {
+                    return false;
+                }
+                if c == b'%' && run_length != el.run_length {
                     return false;
                 }
                 el.c == c
@@ -1492,6 +1503,8 @@ impl InlineStack {
     fn push(&mut self, el: InlineEl) {
         if el.c == b'~' {
             self.trim_lower_bound(InlineStack::TILDES);
+        } else if el.c == b'%' {
+            self.trim_lower_bound(InlineStack::PERCENTAGES);
         }
         self.stack.push(el)
     }
@@ -2023,6 +2036,7 @@ fn body_to_tag_end(body: &ItemBody) -> TagEnd {
     match *body {
         ItemBody::Paragraph => TagEnd::Paragraph,
         ItemBody::Emphasis => TagEnd::Emphasis,
+        ItemBody::Output => TagEnd::Output,
         ItemBody::Strong => TagEnd::Strong,
         ItemBody::Strikethrough => TagEnd::Strikethrough,
         ItemBody::Link(..) => TagEnd::Link,
@@ -2065,6 +2079,7 @@ fn item_to_event<'a>(item: Item, text: &'a str, allocs: &mut Allocations<'a>) ->
         ItemBody::Rule => return Event::Rule,
         ItemBody::Paragraph => Tag::Paragraph,
         ItemBody::Emphasis => Tag::Emphasis,
+        ItemBody::Output => Tag::Output,
         ItemBody::Strong => Tag::Strong,
         ItemBody::Strikethrough => Tag::Strikethrough,
         ItemBody::Link(link_ix) => {

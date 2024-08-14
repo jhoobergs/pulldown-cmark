@@ -191,6 +191,8 @@ pub enum Tag<'a> {
     Strong,
     Strikethrough,
 
+    Output,
+
     /// A link.
     Link {
         link_type: LinkType,
@@ -230,6 +232,7 @@ impl<'a> Tag<'a> {
             Tag::TableRow => TagEnd::TableRow,
             Tag::TableCell => TagEnd::TableCell,
             Tag::Emphasis => TagEnd::Emphasis,
+            Tag::Output => TagEnd::Output,
             Tag::Strong => TagEnd::Strong,
             Tag::Strikethrough => TagEnd::Strikethrough,
             Tag::Link { .. } => TagEnd::Link,
@@ -264,6 +267,8 @@ pub enum TagEnd {
     Emphasis,
     Strong,
     Strikethrough,
+
+    Output,
 
     Link,
     Image,
