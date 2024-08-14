@@ -468,3 +468,14 @@ fn html_test_output_inline() {
     html::push_html(&mut s, Parser::new(original), true);
     assert_eq!(expected, s);
 }
+
+
+#[test]
+fn html_test_single_percentage_output_multiple() {
+    let original = "hi 100%. But still 30%.";
+    let expected = "<span>hi 100%. But still 30%.</span>\n";
+
+    let mut s = String::new();
+    html::push_html(&mut s, Parser::new(original), true);
+    assert_eq!(expected, s);
+}
