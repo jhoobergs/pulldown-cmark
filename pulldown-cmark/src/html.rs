@@ -20,7 +20,7 @@
 
 //! HTML renderer that takes an iterator of events as input.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use crate::strings::CowStr;
 use crate::Event::*;
@@ -45,6 +45,9 @@ struct HtmlWriter<'a, I, W> {
     /// Only use this when the markdown consists of one Paragraph
     inline: bool,
 
+    /// A list of strings to add hidden between echt part of text.
+    add_in_between: VecDeque<String>,
+
     /// Whether or not the last write wrote a newline.
     end_newline: bool,
 
@@ -67,6 +70,21 @@ where
             iter,
             writer,
             inline,
+            add_in_between: VecDeque::new(),
+            end_newline: true,
+            in_non_writing_block: false,
+            table_state: TableState::Head,
+            table_alignments: vec![],
+            table_cell_index: 0,
+            numbers: HashMap::new(),
+        }
+    }
+    fn new_with_in_between(iter: I, writer: W, inline: bool, add_in_between: Vec<String>) -> Self {
+        Self {
+            iter,
+            writer,
+            inline,
+            add_in_between: add_in_between.into_iter().collect(),
             end_newline: true,
             in_non_writing_block: false,
             table_state: TableState::Head,
@@ -94,6 +112,26 @@ where
         Ok(())
     }
 
+    fn write_text(&mut self, text: &str) -> Result<(), W::Error> {
+        if self.add_in_between.is_empty() {
+            escape_html_body_text(&mut self.writer, &text)
+        }
+        else {
+            for (idx, item) in text.split(" ").enumerate() {
+                if idx > 0 {
+                    self.write(" ")?;
+                }
+                escape_html_body_text(&mut self.writer, &item)?;
+                let to_add = self.add_in_between.pop_front().unwrap();
+                self.write("<span style='font-size: 0pt;color: white;'>")?;
+                self.write(&to_add)?;
+                self.write("</span>")?;
+                self.add_in_between.push_back(to_add);
+            }
+            Ok(())
+        }
+    }
+
     fn run(mut self) -> Result<(), W::Error> {
         while let Some(event) = self.iter.next() {
             match event {
@@ -105,7 +143,7 @@ where
                 }
                 Text(text) => {
                     if !self.in_non_writing_block {
-                        escape_html_body_text(&mut self.writer, &text)?;
+                        self.write_text(&text)?;
                         self.end_newline = text.ends_with('\n');
                     }
                 }
@@ -551,6 +589,14 @@ where
     write_html_fmt(s, iter, inline).unwrap()
 }
 
+pub fn push_html_in_between<'a, I>(s: &mut String, iter: I, inline: bool, add_in_between: Vec<String>)
+where
+    I: Iterator<Item = Event<'a>>,
+{
+    write_html_fmt_in_between(s, iter, inline, add_in_between).unwrap()
+}
+
+
 /// Iterate over an `Iterator` of `Event`s, generate HTML for each `Event`, and
 /// write it out to an I/O stream.
 ///
@@ -625,4 +671,36 @@ where
     W: std::fmt::Write,
 {
     HtmlWriter::new(iter, FmtWriter(writer), inline).run()
+}
+
+/// # Examples
+///
+/// ```
+/// use pulldown_cmark::{html, Parser};
+///
+/// let markdown_str = r#"
+/// hello
+/// =====
+///
+/// * alpha
+/// * beta
+/// "#;
+/// let mut buf = String::new();
+/// let parser = Parser::new(markdown_str);
+///
+/// html::write_html_fmt_in_between(&mut buf, parser, false, vec!["a".to_string(), "b".to_string()]);
+///
+/// assert_eq!(buf, r#"<h1>hello<span style='font-size: 0pt;color: white;'>a</span></h1>
+/// <ul>
+/// <li>alpha<span style='font-size: 0pt;color: white;'>b</span></li>
+/// <li>beta<span style='font-size: 0pt;color: white;'>a</span></li>
+/// </ul>
+/// "#);
+/// ```
+pub fn write_html_fmt_in_between<'a, I, W>(writer: W, iter: I, inline: bool, add_in_between: Vec<String>) -> std::fmt::Result
+where
+    I: Iterator<Item = Event<'a>>,
+    W: std::fmt::Write,
+{
+    HtmlWriter::new_with_in_between(iter, FmtWriter(writer), inline, add_in_between).run()
 }
