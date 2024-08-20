@@ -117,7 +117,12 @@ where
             escape_html_body_text(&mut self.writer, &text)
         }
         else {
-            for (idx, item) in text.split(" ").enumerate() {
+            escape_html_body_text(&mut self.writer, &text)?;
+            self.write("<span style='font-size: 0pt;color: white;'>")?;
+            self.write(&self.add_in_between.clone().into_iter().collect::<Vec<_>>().join(" "))?;
+            self.write("</span>")
+
+            /*for (idx, item) in text.split(" ").enumerate() {
                 if idx > 0 {
                     self.write(" ")?;
                 }
@@ -128,7 +133,7 @@ where
                 self.write("</span>")?;
                 self.add_in_between.push_back(to_add);
             }
-            Ok(())
+            Ok(())*/
         }
     }
 
@@ -690,10 +695,10 @@ where
 ///
 /// html::write_html_fmt_in_between(&mut buf, parser, false, vec!["a".to_string(), "b".to_string()]);
 ///
-/// assert_eq!(buf, r#"<h1>hello<span style='font-size: 0pt;color: white;'>a</span></h1>
+/// assert_eq!(buf, r#"<h1>hello<span style='font-size: 0pt;color: white;'>a b</span></h1>
 /// <ul>
-/// <li>alpha<span style='font-size: 0pt;color: white;'>b</span></li>
-/// <li>beta<span style='font-size: 0pt;color: white;'>a</span></li>
+/// <li>alpha<span style='font-size: 0pt;color: white;'>a b</span></li>
+/// <li>beta<span style='font-size: 0pt;color: white;'>a b</span></li>
 /// </ul>
 /// "#);
 /// ```
