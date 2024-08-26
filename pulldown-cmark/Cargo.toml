@@ -77,7 +77,7 @@ default = ["getopts", "html", "ssr"]
 gen-tests = []
 simd = ["pulldown-cmark-escape?/simd"]
 html = ["pulldown-cmark-escape"]
-ssr = ["katex/quick-js"]
+ssr = ["katex/duktape"]
 hydrate = ["katex/wasm-js"]
 
 [lints.rust]

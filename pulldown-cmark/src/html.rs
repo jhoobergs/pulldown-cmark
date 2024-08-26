@@ -540,8 +540,8 @@ where
 
 fn katex_render(text: &str) -> String {
     let opts = katex::Opts::builder().display_mode(false).build().unwrap();
-    let html_in_display_mode = katex::render_with_opts(text, &opts).unwrap();
-    html_in_display_mode
+    let html = katex::render_with_opts(text, &opts).unwrap();
+    html
 }
 fn katex_render_display(text: &str) -> String {
     // \begin{align} etc should be parsed as display mode
