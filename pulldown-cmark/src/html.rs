@@ -547,12 +547,12 @@ fn katex_render_display(text: &str) -> String {
     //  Support \begin{align} etc by surrounding them with $$
     let with_dollars = !text.trim().starts_with("\\begin{");
 
-    if with_dollars {
-        katex_render(text)
-    } else {
+    if with_dollars {        
         let opts = katex::Opts::builder().display_mode(true).build().unwrap();
         let html_in_display_mode = katex::render_with_opts(text, &opts).unwrap();
         html_in_display_mode
+    } else {
+        katex_render(text)
     }
     
 }
