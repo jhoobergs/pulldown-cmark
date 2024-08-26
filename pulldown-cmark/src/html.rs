@@ -158,14 +158,10 @@ where
                     self.write("</code>")?;
                 }
                 InlineMath(text) => {
-                    self.write(r#"<span class="math math-inline">"#)?;
-                    escape_html(&mut self.writer, &text)?;
-                    self.write("</span>")?;
+                    self.write(&katex_render(&text))?;
                 }
                 DisplayMath(text) => {
-                    self.write(r#"<span class="math math-display">"#)?;
-                    escape_html(&mut self.writer, &text)?;
-                    self.write("</span>")?;
+                    self.write(&katex_render_display(&text))?;
                 }
                 Html(html) | InlineHtml(html) => {
                     self.write(&html)?;
@@ -521,14 +517,10 @@ where
                     self.end_newline = text.ends_with('\n');
                 }
                 InlineMath(text) => {
-                    self.write("$")?;
-                    escape_html(&mut self.writer, &text)?;
-                    self.write("$")?;
+                    self.write(&katex_render(&text))?;
                 }
                 DisplayMath(text) => {
-                    self.write("$$")?;
-                    escape_html(&mut self.writer, &text)?;
-                    self.write("$$")?;
+                    self.write(&katex_render_display(&text))?;
                 }
                 SoftBreak | HardBreak | Rule => {
                     self.write(" ")?;
@@ -544,6 +536,25 @@ where
         }
         Ok(())
     }
+}
+
+fn katex_render(text: &str) -> String {
+    let opts = katex::Opts::builder().display_mode(false).build().unwrap();
+    let html_in_display_mode = katex::render_with_opts(text, &opts).unwrap();
+    html_in_display_mode
+}
+fn katex_render_display(text: &str) -> String {
+    //  Support \begin{align} etc by surrounding them with $$
+    let with_dollars = !text.trim().starts_with("\\begin{");
+
+    if with_dollars {
+        katex_render(text)
+    } else {
+        let opts = katex::Opts::builder().display_mode(true).build().unwrap();
+        let html_in_display_mode = katex::render_with_opts(text, &opts).unwrap();
+        html_in_display_mode
+    }
+    
 }
 
 /// Iterate over an `Iterator` of `Event`s, generate HTML for each `Event`, and
