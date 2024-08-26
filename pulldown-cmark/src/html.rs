@@ -544,17 +544,10 @@ fn katex_render(text: &str) -> String {
     html_in_display_mode
 }
 fn katex_render_display(text: &str) -> String {
-    //  Support \begin{align} etc by surrounding them with $$
-    let with_dollars = !text.trim().starts_with("\\begin{");
-
-    if with_dollars {        
-        let opts = katex::Opts::builder().display_mode(true).build().unwrap();
-        let html_in_display_mode = katex::render_with_opts(text, &opts).unwrap();
-        html_in_display_mode
-    } else {
-        katex_render(text)
-    }
-    
+    // \begin{align} etc should be parsed as display mode
+    let opts = katex::Opts::builder().display_mode(true).build().unwrap();
+    let html_in_display_mode = katex::render_with_opts(text, &opts).unwrap();
+    html_in_display_mode    
 }
 
 /// Iterate over an `Iterator` of `Event`s, generate HTML for each `Event`, and
