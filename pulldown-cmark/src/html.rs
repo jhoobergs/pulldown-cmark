@@ -54,6 +54,8 @@ struct HtmlWriter<'a, I, W> {
     /// Whether if inside a metadata block (text should not be written)
     in_non_writing_block: bool,
 
+    in_code_block: bool,
+
     table_state: TableState,
     table_alignments: Vec<Alignment>,
     table_cell_index: usize,
@@ -73,6 +75,7 @@ where
             add_in_between: VecDeque::new(),
             end_newline: true,
             in_non_writing_block: false,
+            in_code_block: true,
             table_state: TableState::Head,
             table_alignments: vec![],
             table_cell_index: 0,
@@ -87,6 +90,7 @@ where
             add_in_between: add_in_between.into_iter().collect(),
             end_newline: true,
             in_non_writing_block: false,
+            in_code_block: false,
             table_state: TableState::Head,
             table_alignments: vec![],
             table_cell_index: 0,
@@ -113,12 +117,12 @@ where
     }
 
     fn write_text(&mut self, text: &str) -> Result<(), W::Error> {
-        if self.add_in_between.is_empty() {
+        if self.add_in_between.is_empty() || self.in_code_block {
             escape_html_body_text(&mut self.writer, &text)
         }
         else {
             escape_html_body_text(&mut self.writer, &text)?;
-            self.write("<span style='font-size: 0pt;color: white;'>")?;
+            self.write("<span style='font-size: 0pt;color: white;vertical-align: top;'>")?;
             self.write(&self.add_in_between.clone().into_iter().collect::<Vec<_>>().join(" "))?;
             self.write("</span>")
 
@@ -303,6 +307,7 @@ where
                 }
             }
             Tag::CodeBlock(info) => {
+                self.in_code_block = true;
                 if !self.end_newline {
                     self.write_newline()?;
                 }
@@ -460,6 +465,7 @@ where
                 self.write("</blockquote>\n")?;
             }
             TagEnd::CodeBlock => {
+                self.in_code_block = false;
                 self.write("</code></pre>\n")?;
             }
             TagEnd::List(true) => {
@@ -699,10 +705,10 @@ where
 ///
 /// html::write_html_fmt_in_between(&mut buf, parser, false, vec!["a".to_string(), "b".to_string()]);
 ///
-/// assert_eq!(buf, r#"<h1>hello<span style='font-size: 0pt;color: white;'>a b</span></h1>
+/// assert_eq!(buf, r#"<h1>hello<span style='font-size: 0pt;color: white;vertical-align: top;'>a b</span></h1>
 /// <ul>
-/// <li>alpha<span style='font-size: 0pt;color: white;'>a b</span></li>
-/// <li>beta<span style='font-size: 0pt;color: white;'>a b</span></li>
+/// <li>alpha<span style='font-size: 0pt;color: white;vertical-align: top;'>a b</span></li>
+/// <li>beta<span style='font-size: 0pt;color: white;vertical-align: top;'>a b</span></li>
 /// </ul>
 /// "#);
 /// ```
