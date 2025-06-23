@@ -21,7 +21,7 @@
 //! Utility functions for HTML escaping. Only useful when building your own
 //! HTML renderer.
 
-use std::fmt::{self, Arguments};
+use std::fmt::{self, Arguments, Display};
 use std::io::{self, Write};
 use std::str::from_utf8;
 
@@ -48,13 +48,30 @@ static SINGLE_QUOTE_ESCAPE: &str = "&#x27;";
 #[derive(Debug)]
 pub struct IoWriter<W>(pub W);
 
+
+#[derive(Debug)]
+pub enum WriteError<E> {
+    Normal(E),
+    Other(String)
+}
+
+impl<E: Display> std::fmt::Display for WriteError<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            WriteError::Normal(n) => write!(f, "{n}"),
+            WriteError::Other(o) => write!(f, "{o}"),
+        }
+    }
+}
+
+
 /// Trait that allows writing string slices. This is basically an extension
 /// of `std::io::Write` in order to include `String`.
 pub trait StrWrite {
     type Error;
 
-    fn write_str(&mut self, s: &str) -> Result<(), Self::Error>;
-    fn write_fmt(&mut self, args: Arguments) -> Result<(), Self::Error>;
+    fn write_str(&mut self, s: &str) -> Result<(), WriteError<Self::Error>>;
+    fn write_fmt(&mut self, args: Arguments) -> Result<(), WriteError<Self::Error>>;
 }
 
 impl<W> StrWrite for IoWriter<W>
@@ -64,13 +81,13 @@ where
     type Error = io::Error;
 
     #[inline]
-    fn write_str(&mut self, s: &str) -> io::Result<()> {
-        self.0.write_all(s.as_bytes())
+    fn write_str(&mut self, s: &str) -> Result<(), WriteError<Self::Error>> {
+        self.0.write_all(s.as_bytes()).map_err(WriteError::Normal)
     }
 
     #[inline]
-    fn write_fmt(&mut self, args: Arguments) -> io::Result<()> {
-        self.0.write_fmt(args)
+    fn write_fmt(&mut self, args: Arguments) -> Result<(), WriteError<Self::Error>> {
+        self.0.write_fmt(args).map_err(WriteError::Normal)
     }
 }
 
@@ -88,13 +105,13 @@ where
     type Error = fmt::Error;
 
     #[inline]
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.0.write_str(s)
+    fn write_str(&mut self, s: &str) -> Result<(), WriteError<Self::Error>> {
+        self.0.write_str(s).map_err(WriteError::Normal)
     }
 
     #[inline]
-    fn write_fmt(&mut self, args: Arguments) -> fmt::Result {
-        self.0.write_fmt(args)
+    fn write_fmt(&mut self, args: Arguments) -> Result<(), WriteError<Self::Error>> {
+        self.0.write_fmt(args).map_err(WriteError::Normal)
     }
 }
 
@@ -102,14 +119,14 @@ impl StrWrite for String {
     type Error = fmt::Error;
 
     #[inline]
-    fn write_str(&mut self, s: &str) -> fmt::Result {
+    fn write_str(&mut self, s: &str) -> Result<(), WriteError<Self::Error>> {
         self.push_str(s);
         Ok(())
     }
 
     #[inline]
-    fn write_fmt(&mut self, args: Arguments) -> fmt::Result {
-        fmt::Write::write_fmt(self, args)
+    fn write_fmt(&mut self, args: Arguments) -> Result<(), WriteError<Self::Error>> {
+        fmt::Write::write_fmt(self, args).map_err(WriteError::Normal)
     }
 }
 
@@ -120,18 +137,18 @@ where
     type Error = W::Error;
 
     #[inline]
-    fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
+    fn write_str(&mut self, s: &str) -> Result<(), WriteError<Self::Error>> {
         (**self).write_str(s)
     }
 
     #[inline]
-    fn write_fmt(&mut self, args: Arguments) -> Result<(), Self::Error> {
+    fn write_fmt(&mut self, args: Arguments) -> Result<(), WriteError<Self::Error>> {
         (**self).write_fmt(args)
     }
 }
 
 /// Writes an href to the buffer, escaping href unsafe bytes.
-pub fn escape_href<W>(mut w: W, s: &str) -> Result<(), W::Error>
+pub fn escape_href<W>(mut w: W, s: &str) -> Result<(), WriteError<W::Error>>
 where
     W: StrWrite,
 {
@@ -201,7 +218,7 @@ static HTML_ESCAPES: [&str; 6] = ["", "&amp;", "&lt;", "&gt;", "&quot;", "&#39;"
 /// // This is not okay.
 /// //let not_ok = format!("<a title={value}>test</a>");
 /// ````
-pub fn escape_html<W: StrWrite>(w: W, s: &str) -> Result<(), W::Error> {
+pub fn escape_html<W: StrWrite>(w: W, s: &str) -> Result<(), WriteError<W::Error>> {
     #[cfg(all(target_arch = "x86_64", feature = "simd"))]
     {
         simd::escape_html(w, s, &HTML_ESCAPE_TABLE)
@@ -230,7 +247,7 @@ pub fn escape_html<W: StrWrite>(w: W, s: &str) -> Result<(), W::Error> {
 /// It should always be correct, but will produce larger output.
 ///
 /// </div>
-pub fn escape_html_body_text<W: StrWrite>(w: W, s: &str) -> Result<(), W::Error> {
+pub fn escape_html_body_text<W: StrWrite>(w: W, s: &str) -> Result<(), WriteError<W::Error>> {
     #[cfg(all(target_arch = "x86_64", feature = "simd"))]
     {
         simd::escape_html(w, s, &HTML_BODY_TEXT_ESCAPE_TABLE)
@@ -245,7 +262,7 @@ fn escape_html_scalar<W: StrWrite>(
     mut w: W,
     s: &str,
     table: &'static [u8; 256],
-) -> Result<(), W::Error> {
+) -> Result<(), WriteError<W::Error>> {
     let bytes = s.as_bytes();
     let mut mark = 0;
     let mut i = 0;
@@ -279,7 +296,7 @@ mod simd {
         mut w: W,
         s: &str,
         table: &'static [u8; 256],
-    ) -> Result<(), W::Error> {
+    ) -> Result<(), WriteError<W::Error>> {
         // The SIMD accelerated code uses the PSHUFB instruction, which is part
         // of the SSSE3 instruction set. Further, we can only use this code if
         // the buffer is at least one VECTOR_SIZE in length to prevent reading

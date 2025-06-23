@@ -26,7 +26,7 @@ use crate::strings::CowStr;
 use crate::Event::*;
 use crate::{Alignment, BlockQuoteKind, CodeBlockKind, Event, LinkType, Tag, TagEnd};
 use pulldown_cmark_escape::{
-    escape_href, escape_html, escape_html_body_text, FmtWriter, IoWriter, StrWrite,
+    escape_href, escape_html, escape_html_body_text, FmtWriter, IoWriter, StrWrite, WriteError,
 };
 
 enum TableState {
@@ -100,14 +100,14 @@ where
 
     /// Writes a new line.
     #[inline]
-    fn write_newline(&mut self) -> Result<(), W::Error> {
+    fn write_newline(&mut self) -> Result<(), WriteError<W::Error>> {
         self.end_newline = true;
         self.writer.write_str("\n")
     }
 
     /// Writes a buffer, and tracks whether or not a newline was written.
     #[inline]
-    fn write(&mut self, s: &str) -> Result<(), W::Error> {
+    fn write(&mut self, s: &str) -> Result<(), WriteError<W::Error>> {
         self.writer.write_str(s)?;
 
         if !s.is_empty() {
@@ -116,7 +116,7 @@ where
         Ok(())
     }
 
-    fn write_text(&mut self, text: &str) -> Result<(), W::Error> {
+    fn write_text(&mut self, text: &str) -> Result<(), WriteError<W::Error>> {
         if self.add_in_between.is_empty() || self.in_code_block {
             escape_html_body_text(&mut self.writer, &text)
         }
@@ -141,7 +141,7 @@ where
         }
     }
 
-    fn run(mut self) -> Result<(), W::Error> {
+    fn run(mut self) -> Result<(), WriteError<W::Error>> {
         while let Some(event) = self.iter.next() {
             match event {
                 Start(tag) => {
@@ -204,7 +204,7 @@ where
     }
 
     /// Writes the start of an HTML tag.
-    fn start_tag(&mut self, tag: Tag<'a>) -> Result<(), W::Error> {
+    fn start_tag(&mut self, tag: Tag<'a>) -> Result<(), WriteError<W::Error>> {
         match tag {
             Tag::HtmlBlock => Ok(()),
             Tag::Paragraph => {
@@ -423,7 +423,7 @@ where
         }
     }
 
-    fn end_tag(&mut self, tag: TagEnd) -> Result<(), W::Error> {
+    fn end_tag(&mut self, tag: TagEnd) -> Result<(), WriteError<W::Error>> {
         match tag {
             TagEnd::HtmlBlock => {}
             TagEnd::Paragraph => {
@@ -504,7 +504,7 @@ where
     }
 
     // run raw text, consuming end tag
-    fn raw_text(&mut self) -> Result<(), W::Error> {
+    fn raw_text(&mut self) -> Result<(), WriteError<W::Error>> {
         let mut nest = 0;
         while let Some(event) = self.iter.next() {
             match event {
@@ -645,7 +645,7 @@ where
 /// </ul>
 /// "#);
 /// ```
-pub fn write_html_io<'a, I, W>(writer: W, iter: I, inline: bool) -> std::io::Result<()>
+pub fn write_html_io<'a, I, W>(writer: W, iter: I, inline: bool) -> Result<(), WriteError<std::io::Error>>
 where
     I: Iterator<Item = Event<'a>>,
     W: std::io::Write,
@@ -680,7 +680,7 @@ where
 /// </ul>
 /// "#);
 /// ```
-pub fn write_html_fmt<'a, I, W>(writer: W, iter: I, inline: bool) -> std::fmt::Result
+pub fn write_html_fmt<'a, I, W>(writer: W, iter: I, inline: bool) -> Result<(), WriteError<std::fmt::Error>>
 where
     I: Iterator<Item = Event<'a>>,
     W: std::fmt::Write,
@@ -712,7 +712,7 @@ where
 /// </ul>
 /// "#);
 /// ```
-pub fn write_html_fmt_in_between<'a, I, W>(writer: W, iter: I, inline: bool, add_in_between: Vec<String>) -> std::fmt::Result
+pub fn write_html_fmt_in_between<'a, I, W>(writer: W, iter: I, inline: bool, add_in_between: Vec<String>) -> Result<(), WriteError<std::fmt::Error>>
 where
     I: Iterator<Item = Event<'a>>,
     W: std::fmt::Write,
