@@ -468,7 +468,9 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
                                         )
                                     });
                                 if !invalid && delim_brace_context == brace_context {
-                                    if (!is_display && can_close) || (is_display && delim_is_display) {
+                                    if (!is_display && can_close)
+                                        || (is_display && delim_is_display)
+                                    {
                                         // This will skip ahead past everything we
                                         // just inserted. Needed for correctness to
                                         // ensure that a new scan is done after this item.
@@ -677,7 +679,9 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
                                 RefScan::LinkLabel(l, end_ix) => {
                                     Some((ReferenceLabel::Link(l), end_ix))
                                 }
-                                RefScan::Collapsed(..) | RefScan::Failed | RefScan::UnexpectedFootnote => {
+                                RefScan::Collapsed(..)
+                                | RefScan::Failed
+                                | RefScan::UnexpectedFootnote => {
                                     // No label? maybe it is a shortcut reference
                                     let label_start = self.tree[tos.node].item.end - 1;
                                     let label_end = self.tree[cur_ix].item.end;
@@ -719,8 +723,10 @@ impl<'input, F: BrokenLinkCallback<'input>> Parser<'input, F> {
                                         self.tree[tos.node].child = None;
                                         self.tree[tos.node].item.body =
                                             ItemBody::SynthesizeChar('!');
-                                        self.tree[cur_ix].item.start = self.tree[tos.node].item.start + 1;
-                                        self.tree[tos.node].item.end = self.tree[tos.node].item.start + 1;
+                                        self.tree[cur_ix].item.start =
+                                            self.tree[tos.node].item.start + 1;
+                                        self.tree[tos.node].item.end =
+                                            self.tree[tos.node].item.start + 1;
                                         cur_ix
                                     } else {
                                         tos.node
@@ -1722,11 +1728,10 @@ impl MathDelims {
         ix: TreeIndex,
         can_close: bool,
     ) {
-        self.inner.entry(brace_context).or_default().push_back((
-            ix,
-            can_close,
-            delim_is_display,
-        ));
+        self.inner
+            .entry(brace_context)
+            .or_default()
+            .push_back((ix, can_close, delim_is_display));
     }
 
     fn is_populated(&self) -> bool {
@@ -2346,12 +2351,14 @@ mod test {
                 _ => {
                     immediately_before_footnote = Some((ev, range));
                     None
-                },
+                }
             })
             .next()
             .unwrap();
         assert_eq!(13..17, range);
-        if let (Event::Text(exclamation), range_exclamation) = immediately_before_footnote.as_ref().unwrap() {
+        if let (Event::Text(exclamation), range_exclamation) =
+            immediately_before_footnote.as_ref().unwrap()
+        {
             assert_eq!("!", &exclamation[..]);
             assert_eq!(&(12..13), range_exclamation);
         } else {

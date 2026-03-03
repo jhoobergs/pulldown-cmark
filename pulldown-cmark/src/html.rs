@@ -45,6 +45,9 @@ struct HtmlWriter<'a, I, W> {
     /// Only use this when the markdown consists of one Paragraph
     inline: bool,
 
+    /// Whether the a tags should get target="_blank" for inline links
+    blank_target: bool,
+
     /// A list of strings to add hidden between echt part of text.
     add_in_between: VecDeque<String>,
 
@@ -67,11 +70,12 @@ where
     I: Iterator<Item = Event<'a>>,
     W: StrWrite,
 {
-    fn new(iter: I, writer: W, inline: bool) -> Self {
+    fn new(iter: I, writer: W, inline: bool, blank_target: bool) -> Self {
         Self {
             iter,
             writer,
             inline,
+            blank_target,
             add_in_between: VecDeque::new(),
             end_newline: true,
             in_non_writing_block: false,
@@ -82,11 +86,18 @@ where
             numbers: HashMap::new(),
         }
     }
-    fn new_with_in_between(iter: I, writer: W, inline: bool, add_in_between: Vec<String>) -> Self {
+    fn new_with_in_between(
+        iter: I,
+        writer: W,
+        inline: bool,
+        blank_target: bool,
+        add_in_between: Vec<String>,
+    ) -> Self {
         Self {
             iter,
             writer,
             inline,
+            blank_target,
             add_in_between: add_in_between.into_iter().collect(),
             end_newline: true,
             in_non_writing_block: false,
@@ -119,11 +130,17 @@ where
     fn write_text(&mut self, text: &str) -> Result<(), WriteError<W::Error>> {
         if self.add_in_between.is_empty() || self.in_code_block {
             escape_html_body_text(&mut self.writer, &text)
-        }
-        else {
+        } else {
             escape_html_body_text(&mut self.writer, &text)?;
             self.write("<span style='font-size: 0pt;color: white;vertical-align: top;'>")?;
-            self.write(&self.add_in_between.clone().into_iter().collect::<Vec<_>>().join(" "))?;
+            self.write(
+                &self
+                    .add_in_between
+                    .clone()
+                    .into_iter()
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            )?;
             self.write("</span>")
 
             /*for (idx, item) in text.split(" ").enumerate() {
@@ -208,17 +225,12 @@ where
         match tag {
             Tag::HtmlBlock => Ok(()),
             Tag::Paragraph => {
-                let html = if self.inline {
-                    "<span>"
-                } else {
-                    "<p>"
-                };
+                let html = if self.inline { "<span>" } else { "<p>" };
 
                 if !self.end_newline {
                     self.write("\n")?;
                 }
                 self.write(html)
-
             }
             Tag::Heading {
                 level,
@@ -374,6 +386,24 @@ where
                 self.write("\">")
             }
             Tag::Link {
+                link_type: LinkType::Inline,
+                dest_url,
+                title,
+                id: _,
+            } => {
+                let target = self
+                    .blank_target
+                    .then(|| r#"target="_blank" "#)
+                    .unwrap_or_default();
+                self.write(&format!("<a {}href=\"", target))?;
+                escape_href(&mut self.writer, &dest_url)?;
+                if !title.is_empty() {
+                    self.write("\" title=\"")?;
+                    escape_html(&mut self.writer, &title)?;
+                }
+                self.write("\">")
+            }
+            Tag::Link {
                 link_type: _,
                 dest_url,
                 title,
@@ -427,11 +457,7 @@ where
         match tag {
             TagEnd::HtmlBlock => {}
             TagEnd::Paragraph => {
-                let html = if self.inline {
-                    "</span>"
-                } else {
-                    "</p>"
-                };
+                let html = if self.inline { "</span>" } else { "</p>" };
                 self.write(html)?;
                 self.write("\n")?;
             }
@@ -553,7 +579,7 @@ fn katex_render_display(text: &str) -> String {
     // \begin{align} etc should be parsed as display mode
     let opts = katex::Opts::builder().display_mode(true).build().unwrap();
     let html_in_display_mode = katex::render_with_opts(text, &opts).unwrap();
-    html_in_display_mode    
+    html_in_display_mode
 }
 
 /// Iterate over an `Iterator` of `Event`s, generate HTML for each `Event`, and
@@ -574,7 +600,7 @@ fn katex_render_display(text: &str) -> String {
 /// let parser = Parser::new(markdown_str);
 ///
 /// let mut html_buf = String::new();
-/// html::push_html(&mut html_buf, parser, false);
+/// html::push_html(&mut html_buf, parser, false, false);
 ///
 /// assert_eq!(html_buf, r#"<h1>hello</h1>
 /// <ul>
@@ -592,7 +618,7 @@ fn katex_render_display(text: &str) -> String {
 /// let parser = Parser::new(markdown_str);
 ///
 /// let mut html_buf = String::new();
-/// html::push_html(&mut html_buf, parser, true);
+/// html::push_html(&mut html_buf, parser, true, false);
 ///
 /// assert_eq!(html_buf, r#"<span>This is a short <em>markdown</em> string.</span>
 /// "#);
@@ -601,16 +627,28 @@ pub fn push_html<'a, I>(s: &mut String, iter: I, inline: bool)
 where
     I: Iterator<Item = Event<'a>>,
 {
-    write_html_fmt(s, iter, inline).unwrap()
+    push_html_blank_target(s, iter, inline, false)
 }
 
-pub fn push_html_in_between<'a, I>(s: &mut String, iter: I, inline: bool, add_in_between: Vec<String>)
+/// See [push_html]
+pub fn push_html_blank_target<'a, I>(s: &mut String, iter: I, inline: bool, blank_target: bool)
 where
     I: Iterator<Item = Event<'a>>,
 {
-    write_html_fmt_in_between(s, iter, inline, add_in_between).unwrap()
+    write_html_fmt(s, iter, inline, blank_target).unwrap()
 }
 
+pub fn push_html_in_between<'a, I>(
+    s: &mut String,
+    iter: I,
+    inline: bool,
+    blank_target: bool,
+    add_in_between: Vec<String>,
+) where
+    I: Iterator<Item = Event<'a>>,
+{
+    write_html_fmt_in_between(s, iter, inline, blank_target, add_in_between).unwrap()
+}
 
 /// Iterate over an `Iterator` of `Event`s, generate HTML for each `Event`, and
 /// write it out to an I/O stream.
@@ -645,12 +683,17 @@ where
 /// </ul>
 /// "#);
 /// ```
-pub fn write_html_io<'a, I, W>(writer: W, iter: I, inline: bool) -> Result<(), WriteError<std::io::Error>>
+pub fn write_html_io<'a, I, W>(
+    writer: W,
+    iter: I,
+    inline: bool,
+    blank_target: bool,
+) -> Result<(), WriteError<std::io::Error>>
 where
     I: Iterator<Item = Event<'a>>,
     W: std::io::Write,
 {
-    HtmlWriter::new(iter, IoWriter(writer), inline).run()
+    HtmlWriter::new(iter, IoWriter(writer), inline, blank_target).run()
 }
 
 /// Iterate over an `Iterator` of `Event`s, generate HTML for each `Event`, and
@@ -680,12 +723,17 @@ where
 /// </ul>
 /// "#);
 /// ```
-pub fn write_html_fmt<'a, I, W>(writer: W, iter: I, inline: bool) -> Result<(), WriteError<std::fmt::Error>>
+pub fn write_html_fmt<'a, I, W>(
+    writer: W,
+    iter: I,
+    inline: bool,
+    blank_target: bool,
+) -> Result<(), WriteError<std::fmt::Error>>
 where
     I: Iterator<Item = Event<'a>>,
     W: std::fmt::Write,
 {
-    HtmlWriter::new(iter, FmtWriter(writer), inline).run()
+    HtmlWriter::new(iter, FmtWriter(writer), inline, blank_target).run()
 }
 
 /// # Examples
@@ -712,10 +760,23 @@ where
 /// </ul>
 /// "#);
 /// ```
-pub fn write_html_fmt_in_between<'a, I, W>(writer: W, iter: I, inline: bool, add_in_between: Vec<String>) -> Result<(), WriteError<std::fmt::Error>>
+pub fn write_html_fmt_in_between<'a, I, W>(
+    writer: W,
+    iter: I,
+    inline: bool,
+    blank_target: bool,
+    add_in_between: Vec<String>,
+) -> Result<(), WriteError<std::fmt::Error>>
 where
     I: Iterator<Item = Event<'a>>,
     W: std::fmt::Write,
 {
-    HtmlWriter::new_with_in_between(iter, FmtWriter(writer), inline, add_in_between).run()
+    HtmlWriter::new_with_in_between(
+        iter,
+        FmtWriter(writer),
+        inline,
+        blank_target,
+        add_in_between,
+    )
+    .run()
 }
